@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Biometrik Live — Indosat</title>
+<script src="chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#eef2f9; --card:#ffffff; --ink:#1e293b; --muted:#64748b;
+    --line:#e2e8f0; --indigo:#4f46e5; --indigo2:#6366f1; --teal:#0ea5e9;
+    --green:#10b981; --amber:#f59e0b; --pink:#ec4899; --red:#ef4444;
+    --shadow:0 6px 22px rgba(15,23,42,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
+    background:linear-gradient(180deg,#e9eefb 0%,#eef2f9 220px);color:var(--ink);}
+  header{background:linear-gradient(120deg,#4338ca,#6366f1 55%,#0ea5e9);
+    color:#fff;padding:18px 26px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+    box-shadow:0 4px 18px rgba(67,56,202,.35);}
+  header h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.3px}
+  header .sub{font-size:12px;opacity:.85;margin-top:2px}
+  .header-spacer{flex:1}
+  .badge{font-size:12px;padding:6px 12px;border-radius:30px;background:rgba(255,255,255,.18);
+    border:1px solid rgba(255,255,255,.35);display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .dot{width:9px;height:9px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.25)}
+  .dot.live{background:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.3)}
+  .dot.snapshot{background:#fbbf24}
+  .dot.loading{background:#fde047;animation:pulse 1s infinite}
+  .dot.error{background:#f87171}
+  @keyframes pulse{50%{opacity:.35}}
+  button.btn{cursor:pointer;border:none;border-radius:10px;padding:9px 14px;font-weight:600;
+    font-size:13px;background:#fff;color:#4338ca;box-shadow:var(--shadow);transition:.15s}
+  button.btn:hover{transform:translateY(-1px)}
+  .wrap{max-width:1380px;margin:0 auto;padding:20px 26px 60px}
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px}
+  .kpi{background:var(--card);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow);
+    border-top:4px solid var(--indigo);position:relative;overflow:hidden}
+  .kpi .k-ico{position:absolute;right:14px;top:14px;font-size:26px;opacity:.16}
+  .kpi .k-label{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  .kpi .k-val{font-size:26px;font-weight:800;margin-top:6px;line-height:1.1}
+  .kpi .k-sub{font-size:11px;color:var(--muted);margin-top:3px}
+  .kpi.c1{border-color:var(--indigo)} .kpi.c2{border-color:var(--teal)}
+  .kpi.c3{border-color:var(--green)} .kpi.c4{border-color:var(--amber)} .kpi.c5{border-color:var(--pink)}
+  /* breadcrumb + filters */
+  .panel{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:16px 18px;margin-bottom:16px}
+  .crumb{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px}
+  .crumb .c-item{cursor:pointer;color:var(--indigo);font-weight:600;padding:4px 10px;border-radius:8px;transition:.15s}
+  .crumb .c-item:hover{background:#eef2ff}
+  .crumb .c-item.cur{color:#fff;background:var(--indigo);cursor:default}
+  .crumb .sep{color:var(--muted)}
+  .filters{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-top:14px}
+  .fld{display:flex;flex-direction:column;gap:4px}
+  .fld label{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+  select,input[type=text]{padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:13px;
+    background:#fff;color:var(--ink);min-width:150px;outline:none}
+  select:focus,input:focus{border-color:var(--indigo);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
+  .brand-toggle{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .brand-toggle button{border:none;background:#fff;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted)}
+  .brand-toggle button.active{background:var(--indigo);color:#fff}
+  .seg{margin-left:auto}
+  .charts{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px}
+  .card{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:16px 18px}
+  .card h3{margin:0 0 4px;font-size:15px;font-weight:700}
+  .card .hint{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .chart-box{position:relative;height:340px}
+  .chart-box.sm{height:300px}
+  .full{grid-column:1/-1}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line)}
+  th{background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
+    cursor:pointer;user-select:none;position:sticky;top:0}
+  th .ar{opacity:.5;font-size:10px}
+  tbody tr:hover{background:#f5f8ff;cursor:pointer}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+  .pill.im3{background:#eef2ff;color:#4338ca} .pill.id{background:#fef3c7;color:#b45309}
+  .tbl-head{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .tbl-head .grow{flex:1}
+  .pager{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);margin-top:10px;flex-wrap:wrap}
+  .pager button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;cursor:pointer;font-weight:600}
+  .pager button:disabled{opacity:.4;cursor:default}
+  .empty{color:var(--muted);text-align:center;padding:30px;font-style:italic}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:10px}
+  @media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}.chart-box{height:300px}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>📊 Dashboard Biometrik Live</h1>
+    <div class="sub">Drill: Branch → MC → DSE → Outlet &nbsp;•&nbsp; Sumber: Google Sheets (Tag N Go + Mapping July)</div>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="badge"><span class="dot" id="statusDot"></span><span id="statusText">Memulai…</span></div>
+  <button class="btn" id="refreshBtn">⟳ Refresh Live</button>
+</header>
+
+<div class="wrap">
+  <!-- KPI -->
+  <div class="kpis" id="kpis"></div>
+
+  <!-- Breadcrumb + Filters -->
+  <div class="panel">
+    <div class="crumb" id="crumb"></div>
+    <div class="filters">
+      <div class="fld">
+        <label>Branch</label>
+        <select id="fBranch"></select>
+      </div>
+      <div class="fld">
+        <label>MC</label>
+        <select id="fMC"></select>
+      </div>
+      <div class="fld">
+        <label>DSE (cso_code)</label>
+        <select id="fDSE"></select>
+      </div>
+      <div class="fld">
+        <label>Cari Outlet</label>
+        <input type="text" id="fOutlet" placeholder="nama / kode outlet…">
+      </div>
+      <div class="seg">
+        <div class="brand-toggle" id="brandToggle">
+          <button data-b="ALL" class="active">Semua</button>
+          <button data-b="IM3">IM3</button>
+          <button data-b="3ID">3ID</button>
+        </div>
+      </div>
+      <button class="btn" id="resetBtn" style="background:#f1f5f9;color:#475569">Reset</button>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts">
+    <div class="card">
+      <h3 id="mainTitle">Biometrik per Branch</h3>
+      <div class="hint">Klik bar untuk drill-down ke level berikutnya.</div>
+      <div class="chart-box"><canvas id="mainChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Komposisi Brand</h3>
+      <div class="hint">Proporsi IM3 vs 3ID (filter saat ini).</div>
+      <div class="chart-box sm"><canvas id="brandChart"></canvas></div>
+    </div>
+    <div class="card full">
+      <h3>Tren Harian Biometrik (1–14 Juli)</h3>
+      <div class="hint">Jumlah transaksi per hari (dipisah per brand bila “Semua”).</div>
+      <div class="chart-box"><canvas id="trendChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <div class="tbl-head">
+      <h3 style="margin:0">Detail per Outlet</h3>
+      <div class="grow"></div>
+      <input type="text" id="tblSearch" placeholder="🔍 cari outlet…" style="min-width:200px">
+    </div>
+    <div style="overflow:auto;max-height:520px">
+      <table id="tbl">
+        <thead><tr id="tblHead"></tr></thead>
+        <tbody id="tblBody"></tbody>
+      </table>
+    </div>
+    <div class="pager" id="pager"></div>
+  </div>
+
+  <footer>Dashboard dibuat untuk monitoring registrasi biometrik • Data otomatis dari Google Sheets • Klik bar/row untuk navigasi</footer>
+</div>
+
+<script>
+const SHEET_ID = "1HqOFgBh_SD3rkvgeq9Lvy9PwtQBB3jQJ";
+const BIO_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Tag%20n%20GO`;
+const MAP_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=MAPPING%20JULY`;
+
+let RAW = [];
+let state = { branch:null, mc:null, dse:null, outlet:null, brand:'ALL' };
+let outletSearch = '';
+let charts = {};
+let tableSort = { key:'count', dir:-1 };
+let tablePage = 1, tablePageSize = 10;
+
+const nf = new Intl.NumberFormat('id-ID');
+const fmt = n => nf.format(n==null?0:n);
+const rupiah = n => 'Rp '+nf.format(n==null?0:n);
+const MONTHS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+function fmtDate(d){
+  if(!d||(''+d).length<8) return d;
+  d=''+d; const m=+d.substr(4,2); return (+d.substr(6,2))+' '+MONTHS[m-1];
+}
+
+/* ---------- CSV parser ---------- */
+function parseCSV(text){
+  const rows=[]; let i=0, field='', row=[], inQ=false;
+  text = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  while(i<text.length){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i+=2;continue;} inQ=false;i++;continue; }
+      field+=c;i++;continue;
+    } else {
+      if(c==='"'){inQ=true;i++;continue;}
+      if(c===','){row.push(field);field='';i++;continue;}
+      if(c==='\n'){row.push(field);rows.push(row);row=[];field='';i++;continue;}
+      field+=c;i++;continue;
+    }
+  }
+  if(field!==''||row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+function findCol(header, name){
+  const n=name.trim().toLowerCase();
+  for(let i=0;i<header.length;i++){ if((header[i]||'').trim().toLowerCase()===n) return i; }
+  return -1;
+}
+
+/* ---------- build records from live CSV ---------- */
+function buildLive(bioText, mapText){
+  const bRows = parseCSV(bioText);
+  const mRows = parseCSV(mapText);
+  if(bRows.length<2) return [];
+  const bh = bRows[0].map(h=>h.trim());
+  const mh = mRows[0].map(h=>h.trim());
+  const iTx=findCol(bh,'transaction_id'), iMs=findCol(bh,'msisdn'), iSc=findCol(bh,'short_code'),
+        iDt=findCol(bh,'data_date'), iCb=findCol(bh,'cashback_value'), iBr=findCol(bh,'brand'),
+        iSa=findCol(bh,'sales_area_name'), iMc=findCol(bh,'micro_cluster_name');
+  const iOc=findCol(mh,'outlet_code'), iCs=findCol(mh,'cso_code'), iOn=findCol(mh,'outlet_name');
+  const dict={};
+  for(let r=1;r<mRows.length;r++){
+    const oc=(mRows[r][iOc]||'').trim();
+    if(oc && !dict[oc]) dict[oc]={ cso:(mRows[r][iCs]||'').trim(), name:(mRows[r][iOn]||'').trim() };
+  }
+  const out=[];
+  for(let r=1;r<bRows.length;r++){
+    const sc=(bRows[r][iSc]||'').trim();
+    const m=dict[sc];
+    const cbv=parseInt((bRows[r][iCb]||'').replace(/[^0-9]/g,''))||0;
+    out.push({
+      msisdn:(bRows[r][iMs]||'').trim(),
+      short_code:sc,
+      date:(bRows[r][iDt]||'').trim(),
+      cashback:cbv,
+      brand:(bRows[r][iBr]||'').trim(),
+      branch:(bRows[r][iSa]||'').trim(),
+      mc:(bRows[r][iMc]||'').trim(),
+      dse:m?m.cso:'',
+      outlet_code:sc,
+      outlet_name:m?m.name:sc
+    });
+  }
+  return out;
+}
+
+/* ---------- data load ---------- */
+function setStatus(kind,text){
+  const dot=document.getElementById('statusDot'), t=document.getElementById('statusText');
+  dot.className='dot '+kind; t.textContent=text;
+}
+async function loadLive(){
+  setStatus('loading','Memuat data live…');
+  try{
+    const [b,m]=await Promise.all([fetch(BIO_URL),fetch(MAP_URL)]);
+    if(!b.ok||!m.ok) throw new Error('http '+b.status+'/'+m.status);
+    const recs=buildLive(await b.text(), await m.text());
+    if(!recs.length) throw new Error('empty');
+    RAW=recs; setStatus('live','Live • '+new Date().toLocaleString('id-ID'));
+    renderAll();
+  }catch(e){
+    if(window.EMBEDDED_DATA && window.EMBEDDED_DATA.length){
+      RAW=window.EMBEDDED_DATA; setStatus('snapshot','Snapshot (offline) • '+new Date().toLocaleString('id-ID'));
+      renderAll();
+    } else { setStatus('error','Gagal memuat: '+e.message); }
+  }
+}
+
+/* ---------- filtering ---------- */
+function getFiltered(){
+  const bs=outletSearch.trim().toLowerCase();
+  return RAW.filter(r=>
+    (!state.branch||r.branch===state.branch) &&
+    (!state.mc||r.mc===state.mc) &&
+    (!state.dse||r.dse===state.dse) &&
+    (!state.outlet||r.outlet_code===state.outlet) &&
+    (state.brand==='ALL'||r.brand===state.brand) &&
+    (!bs||((r.outlet_name+' '+r.outlet_code).toLowerCase().includes(bs)))
+  );
+}
+function distinct(rows, keyFn){
+  const s=new Set(); rows.forEach(r=>{ const v=keyFn(r); if(v) s.add(v); });
+  return [...s].sort();
+}
+
+/* ---------- KPI ---------- */
+function renderKPIs(rows){
+  const unik=new Set(), outlets=new Set(), dse=new Set(); let cash=0;
+  rows.forEach(r=>{ unik.add(r.msisdn); outlets.add(r.outlet_code); if(r.dse) dse.add(r.dse); cash+=r.cashback; });
+  const cards=[
+    {c:'c1',ico:'🧬',label:'Jumlah Biometrik',val:fmt(rows.length),sub:'transaksi registrasi'},
+    {c:'c2',ico:'👥',label:'Pelanggan Unik',val:fmt(unik.size),sub:'msisdn distinct'},
+    {c:'c3',ico:'🏪',label:'Outlet Aktif',val:fmt(outlets.size),sub:'outlet ber-biometrik'},
+    {c:'c4',ico:'🧑‍💼',label:'DSE Aktif',val:fmt(dse.size),sub:'cso_code aktif'},
+    {c:'c5',ico:'💰',label:'Total Cashback',val:rupiah(cash),sub:'akumulasi nilai'},
+  ];
+  document.getElementById('kpis').innerHTML = cards.map(k=>
+    `<div class="kpi ${k.c}"><div class="k-ico">${k.ico}</div>
+      <div class="k-label">${k.label}</div>
+      <div class="k-val">${k.val}</div>
+      <div class="k-sub">${k.sub}</div></div>`).join('');
+}
+
+/* ---------- breadcrumb ---------- */
+function currentDim(){ return !state.branch?'branch':!state.mc?'mc':!state.dse?'dse':'outlet'; }
+function outletName(code){ const r=RAW.find(x=>x.outlet_code===code); return r?r.outlet_name:code; }
+function renderCrumb(){
+  const parts=[];
+  parts.push({label:'Semua',lvl:'all',cur:currentDim()==='branch'&&!state.branch});
+  if(state.branch) parts.push({label:'Branch: '+state.branch,lvl:'branch',cur:!state.mc});
+  if(state.mc) parts.push({label:'MC: '+state.mc,lvl:'mc',cur:!state.dse});
+  if(state.dse) parts.push({label:'DSE: '+state.dse,lvl:'dse',cur:!state.outlet});
+  if(state.outlet) parts.push({label:'Outlet: '+outletName(state.outlet),lvl:'outlet',cur:true});
+  const el=document.getElementById('crumb');
+  el.innerHTML='';
+  parts.forEach((p,idx)=>{
+    if(idx>0){ const s=document.createElement('span'); s.className='sep'; s.textContent='›'; el.appendChild(s); }
+    const a=document.createElement('span');
+    a.className='c-item'+(p.cur?' cur':'');
+    a.textContent=p.label;
+    if(!p.cur) a.onclick=()=>goTo(p.lvl);
+    el.appendChild(a);
+  });
+}
+function goTo(lvl){
+  if(lvl==='all'){state.branch=state.mc=state.dse=state.outlet=null;}
+  else if(lvl==='branch'){state.mc=state.dse=state.outlet=null;}
+  else if(lvl==='mc'){state.dse=state.outlet=null;}
+  else if(lvl==='dse'){state.outlet=null;}
+  tablePage=1; renderAll();
+}
+
+/* ---------- filters ---------- */
+function fillSelect(id, opts, val, allLabel){
+  const sel=document.getElementById(id); sel.innerHTML='';
+  const o0=document.createElement('option'); o0.value=''; o0.textContent=allLabel; sel.appendChild(o0);
+  opts.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; if(v===val)o.selected=true; sel.appendChild(o); });
+}
+function renderFilters(){
+  const brandRows = RAW.filter(r=>state.brand==='ALL'||r.brand===state.brand);
+  fillSelect('fBranch', distinct(brandRows,r=>r.branch), state.branch, 'Semua Branch');
+  const mcRows = brandRows.filter(r=>!state.branch||r.branch===state.branch);
+  fillSelect('fMC', distinct(mcRows,r=>r.mc), state.mc, 'Semua MC');
+  const dseRows = mcRows.filter(r=>!state.mc||r.mc===state.mc);
+  fillSelect('fDSE', distinct(dseRows,r=>r.dse), state.dse, 'Semua DSE');
+  document.getElementById('fOutlet').value=outletSearch;
+}
+
+/* ---------- aggregation ---------- */
+function groupBy(rows, keyFn){
+  const m=new Map();
+  rows.forEach(r=>{ const k=keyFn(r); if(!k) return;
+    if(!m.has(k)) m.set(k,{k,count:0,unik:new Set(),cash:0});
+    const o=m.get(k); o.count++; o.unik.add(r.msisdn); o.cash+=r.cashback;
+  });
+  return [...m.values()].map(o=>({k:o.k,count:o.count,unik:o.unik.size,cash:o.cash}));
+}
+function topN(arr,n){ arr.sort((a,b)=>b.count-a.count); if(arr.length<=n) return arr;
+  const rest=arr.slice(n); const o={k:'Lainnya',count:rest.reduce((s,x)=>s+x.count,0),unik:0,cash:rest.reduce((s,x)=>s+x.cash,0),other:true};
+  return arr.slice(0,n).concat([o]); }
+
+/* ---------- main chart ---------- */
+function renderMain(rows){
+  const dim=currentDim();
+  const keyFn = dim==='branch'?r=>r.branch : dim==='mc'?r=>r.mc : dim==='dse'?r=>r.dse : r=>r.outlet_name;
+  const title = dim==='branch'?'Biometrik per Branch' : dim==='mc'?'Biometrik per MC' : dim==='dse'?'Biometrik per DSE' : 'Biometrik per Outlet';
+  document.getElementById('mainTitle').textContent=title;
+  let data=topN(groupBy(rows,keyFn), dim==='outlet'?25:20);
+  const labels=data.map(d=>d.k);
+  const vals=data.map(d=>d.count);
+  const colors=labels.map((_,i)=>`hsl(${245-i*6},75%,${62-i*0.6}%)`);
+  if(charts.main) charts.main.destroy();
+  charts.main=new Chart(document.getElementById('mainChart'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'Biometrik',data:vals,backgroundColor:colors,borderRadius:7,maxBarThickness:46}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{afterLabel:(c)=>{const d=data[c.dataIndex];return 'Unik: '+fmt(d.unik)+'\nCashback: '+rupiah(d.cash);}}}},
+      onClick:(e,els)=>{ if(els.length){ const i=els[0].index; if(!data[i].other) drill(labels[i]); } },
+      scales:{x:{ticks:{maxRotation:55,minRotation:35,font:{size:11}},grid:{display:false}},
+        y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#eef2f7'}}}
+    }
+  });
+}
+function drill(label){
+  const dim=currentDim();
+  if(dim==='branch'){state.branch=label;state.mc=state.dse=state.outlet=null;}
+  else if(dim==='mc'){state.mc=label;state.dse=state.outlet=null;}
+  else if(dim==='dse'){state.dse=label;state.outlet=null;}
+  else if(dim==='outlet'){const r=RAW.find(x=>x.outlet_name===label);state.outlet=r?r.outlet_code:null;}
+  tablePage=1; renderAll();
+}
+
+/* ---------- brand chart ---------- */
+function renderBrand(rows){
+  const c={}; rows.forEach(r=>{c[r.brand]=(c[r.brand]||0)+1;});
+  const labels=Object.keys(c), vals=labels.map(k=>c[k]);
+  const col={'IM3':'#4f46e5','3ID':'#f59e0b'};
+  if(charts.brand) charts.brand.destroy();
+  charts.brand=new Chart(document.getElementById('brandChart'),{
+    type:'doughnut',
+    data:{labels,datasets:[{data:vals,backgroundColor:labels.map(k=>col[k]||'#94a3b8'),borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+      plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:(c)=>c.label+': '+fmt(c.raw)+' ('+(c.raw/vals.reduce((a,b)=>a+b,0)*100).toFixed(1)+'%)'}}}}
+  });
+}
+
+/* ---------- trend chart ---------- */
+function renderTrend(rows){
+  const m=new Map(); rows.forEach(r=>{ if(!r.date)return; m.set(r.date,(m.get(r.date)||0)+1); });
+  const dates=[...m.keys()].sort(); const labels=dates.map(fmtDate);
+  let datasets;
+  if(state.brand==='ALL'){
+    const im3=dates.map(d=>rows.filter(r=>r.date===d&&r.brand==='IM3').length);
+    const t3=dates.map(d=>rows.filter(r=>r.date===d&&r.brand==='3ID').length);
+    datasets=[{label:'IM3',data:im3,borderColor:'#4f46e5',backgroundColor:'rgba(79,70,229,.12)',fill:true,tension:.3},
+              {label:'3ID',data:t3,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.12)',fill:true,tension:.3}];
+  } else {
+    datasets=[{label:state.brand,data:dates.map(d=>m.get(d)),borderColor:'#0ea5e9',backgroundColor:'rgba(14,165,233,.15)',fill:true,tension:.3}];
+  }
+  if(charts.trend) charts.trend.destroy();
+  charts.trend=new Chart(document.getElementById('trendChart'),{
+    type:'line',
+    data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top'}},
+      scales:{y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#eef2f7'}},x:{grid:{display:false}}}}
+  });
+}
+
+/* ---------- table ---------- */
+const COLS=[
+  {k:'outlet_code',t:'Kode Outlet',num:false},
+  {k:'outlet_name',t:'Nama Outlet',num:false},
+  {k:'dse',t:'DSE',num:false},
+  {k:'mc',t:'MC',num:false},
+  {k:'branch',t:'Branch',num:false},
+  {k:'count',t:'Biometrik',num:true},
+  {k:'unik',t:'Unik',num:true},
+  {k:'cash',t:'Cashback',num:true},
+];
+function renderTable(rows){
+  const m=new Map();
+  rows.forEach(r=>{ const k=r.outlet_code; if(!m.has(k)) m.set(k,{outlet_code:k,outlet_name:r.outlet_name,dse:r.dse,mc:r.mc,branch:r.branch,count:0,unik:new Set(),cash:0});
+    const o=m.get(k); o.count++; o.unik.add(r.msisdn); o.cash+=r.cashback; });
+  let arr=[...m.values()].map(o=>({...o,unik:o.unik.size}));
+  arr.sort((a,b)=>{
+    let x=a[tableSort.key], y=b[tableSort.key];
+    if(typeof x==='string'){return tableSort.dir*x.localeCompare(y);}
+    return tableSort.dir*(x-y);
+  });
+  const total=arr.length;
+  const pages=Math.max(1,Math.ceil(total/tablePageSize));
+  if(tablePage>pages) tablePage=pages;
+  const start=(tablePage-1)*tablePageSize;
+  const slice=arr.slice(start,start+tablePageSize);
+  // head
+  document.getElementById('tblHead').innerHTML=COLS.map(c=>{
+    const ar=tableSort.key===c.k?(tableSort.dir<0?'▼':'▲'):'';
+    return `<th class="${c.num?'num':''}" data-k="${c.k}">${c.t} <span class="ar">${ar}</span></th>`;
+  }).join('');
+  document.querySelectorAll('#tblHead th').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k; if(tableSort.key===k) tableSort.dir*=-1; else {tableSort.key=k; tableSort.dir=-1;}
+    renderTable(rows);
+  });
+  // body
+  const body=document.getElementById('tblBody');
+  if(!slice.length){ body.innerHTML='<tr><td colspan="8" class="empty">Tidak ada data pada filter ini.</td></tr>'; }
+  else body.innerHTML=slice.map(o=>{
+    const bn=o.dse?'':' (tanpa DSE)';
+    return `<tr data-code="${o.outlet_code}">
+      <td>${o.outlet_code}</td>
+      <td>${o.outlet_name}</td>
+      <td>${o.dse||'-'}</td>
+      <td>${o.mc}</td>
+      <td>${o.branch}</td>
+      <td class="num">${fmt(o.count)}</td>
+      <td class="num">${fmt(o.unik)}</td>
+      <td class="num">${rupiah(o.cash)}</td></tr>`;
+  }).join('');
+  body.querySelectorAll('tr[data-code]').forEach(tr=>tr.onclick=()=>{
+    const code=tr.dataset.code;
+    if(state.outlet===code){state.outlet=null;} else {state.outlet=code;}
+    renderAll();
+  });
+  // pager
+  const pager=document.getElementById('pager');
+  pager.innerHTML=`<span>Menampilkan ${total?start+1:0}–${Math.min(start+tablePageSize,total)} dari ${total} outlet</span>
+    <button id="pgPrev" ${tablePage<=1?'disabled':''}>‹ Seb</button>
+    <span>Hal ${tablePage}/${pages}</span>
+    <button id="pgNext" ${tablePage>=pages?'disabled':''}>Ber ›</button>
+    <span style="margin-left:auto">Per halaman:
+    <select id="pgSize">${[10,25,50,100].map(s=>`<option value="${s}" ${s===tablePageSize?'selected':''}>${s}</option>`).join('')}</select></span>`;
+  document.getElementById('pgPrev').onclick=()=>{tablePage--;renderTable(rows);};
+  document.getElementById('pgNext').onclick=()=>{tablePage++;renderTable(rows);};
+  document.getElementById('pgSize').onchange=e=>{tablePageSize=+e.target.value;tablePage=1;renderTable(rows);};
+}
+
+/* ---------- master render ---------- */
+function renderAll(){
+  const rows=getFiltered();
+  renderKPIs(rows); renderCrumb(); renderFilters();
+  renderMain(rows); renderBrand(rows); renderTrend(rows); renderTable(rows);
+}
+
+/* ---------- events ---------- */
+document.getElementById('fBranch').onchange=e=>{state.branch=e.target.value||null;state.mc=state.dse=state.outlet=null;tablePage=1;renderAll();};
+document.getElementById('fMC').onchange=e=>{state.mc=e.target.value||null;state.dse=state.outlet=null;tablePage=1;renderAll();};
+document.getElementById('fDSE').onchange=e=>{state.dse=e.target.value||null;state.outlet=null;tablePage=1;renderAll();};
+let tov; document.getElementById('fOutlet').oninput=e=>{clearTimeout(tov);tov=setTimeout(()=>{outletSearch=e.target.value;tablePage=1;renderAll();},250);};
+let tsv; document.getElementById('tblSearch').oninput=e=>{clearTimeout(tsv);tsv=setTimeout(()=>{outletSearch=e.target.value;tablePage=1;renderAll();},250);};
+document.getElementById('brandToggle').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#brandToggle button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); state.brand=b.dataset.b; tablePage=1; renderAll();
+});
+document.getElementById('resetBtn').onclick=()=>{
+  state={branch:null,mc:null,dse:null,outlet:null,brand:state.brand}; outletSearch=''; tablePage=1; renderAll();
+};
+document.getElementById('refreshBtn').onclick=()=>loadLive();
+
+/* ---------- boot ---------- */
+loadLive();
+</script>
+</body>
+</html>
