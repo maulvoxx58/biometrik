@@ -152,6 +152,35 @@
     </div>
   </div>
 
+  <!-- DSE breakdown (muncul saat Branch dipilih) -->
+  <div class="card" id="dsePanel" style="display:none">
+    <div class="tbl-head">
+      <h3 style="margin:0">📋 Jumlah Outlet & Biometrik per DSE — <span id="dseBranchName"></span></h3>
+      <div id="dseSummary" class="grow" style="display:flex;gap:18px;flex-wrap:wrap;justify-content:flex-end;font-size:13px"></div>
+      <div class="grow"></div>
+      <input type="text" id="dseSearch" placeholder="🔍 cari DSE / MC…" style="min-width:200px">
+    </div>
+    <div class="charts" style="margin-bottom:0">
+      <div class="card" style="box-shadow:none;padding:10px 12px">
+        <h3 style="font-size:14px">Grafik Biometrik per DSE</h3>
+        <div class="hint">Klik bar untuk masuk ke DSE tersebut.</div>
+        <div class="chart-box sm"><canvas id="dseChart"></canvas></div>
+      </div>
+      <div class="card" style="box-shadow:none;padding:10px 12px">
+        <h3 style="font-size:14px">Grafik Jumlah Outlet per DSE</h3>
+        <div class="hint">Banyaknya outlet aktif tiap DSE.</div>
+        <div class="chart-box sm"><canvas id="dseOutletChart"></canvas></div>
+      </div>
+    </div>
+    <div style="overflow:auto;max-height:420px;margin-top:8px">
+      <table id="dseTbl">
+        <thead><tr id="dseHead"></tr></thead>
+        <tbody id="dseBody"></tbody>
+      </table>
+    </div>
+    <div class="pager" id="dsePager"></div>
+  </div>
+
   <!-- Table -->
   <div class="card">
     <div class="tbl-head">
@@ -438,6 +467,101 @@ function renderTrend(rows){
   });
 }
 
+/* ---------- DSE breakdown panel (per branch) ---------- */
+const DSE_COLS=[
+  {k:'dse',t:'DSE (cso_code)',num:false},
+  {k:'mc',t:'MC',num:false},
+  {k:'outlet',t:'Jumlah Outlet',num:true},
+  {k:'biometrik',t:'Biometrik',num:true},
+  {k:'unik',t:'Pelanggan Unik',num:true},
+  {k:'cash',t:'Cashback',num:true},
+];
+let dseSort={key:'biometrik',dir:-1}, dsePage=1, dsePageSize=10, dseSearch='';
+function aggDSE(rows){
+  const m=new Map();
+  rows.forEach(r=>{
+    const k=r.dse||'(tanpa DSE)';
+    if(!m.has(k)) m.set(k,{dse:k,mc:r.mc,outlet:new Set(),biometrik:0,unik:new Set(),cash:0});
+    const o=m.get(k); o.outlet.add(r.outlet_code); o.biometrik++; o.unik.add(r.msisdn); o.cash+=r.cashback;
+  });
+  return [...m.values()].map(o=>({dse:o.dse,mc:o.mc,outlet:o.outlet.size,biometrik:o.biometrik,unik:o.unik.size,cash:o.cash}));
+}
+function renderDSE(rows){
+  const panel=document.getElementById('dsePanel');
+  if(currentDim()!=='branch' || !state.branch){ panel.style.display='none'; if(charts.dse)charts.dse.destroy(); if(charts.dseOutlet)charts.dseOutlet.destroy(); return; }
+  panel.style.display='';
+  document.getElementById('dseBranchName').textContent=state.branch;
+  const totOutlet=arr.reduce((s,o)=>s+o.outlet,0), totBio=arr.reduce((s,o)=>s+o.biometrik,0),
+        totUnik=arr.reduce((s,o)=>s+o.unik,0), totCash=arr.reduce((s,o)=>s+o.cash,0);
+  document.getElementById('dseSummary').innerHTML=
+    `<span>🔢 DSE: <b>${fmt(arr.length)}</b></span>
+     <span>🏪 Outlet: <b>${fmt(totOutlet)}</b></span>
+     <span>🧬 Biometrik: <b>${fmt(totBio)}</b></span>
+     <span>👥 Unik: <b>${fmt(totUnik)}</b></span>
+     <span>💰 Cashback: <b>${rupiah(totCash)}</b></span>`;
+  const q=dseSearch.trim().toLowerCase();
+  let arr=aggDSE(rows).filter(o=>!q||(o.dse+' '+o.mc).toLowerCase().includes(q));
+  arr.sort((a,b)=>{ let x=a[dseSort.key],y=b[dseSort.key];
+    if(typeof x==='string') return dseSort.dir*x.localeCompare(y); return dseSort.dir*(x-y); });
+  // charts
+  const top=arr.slice().sort((a,b)=>b.biometrik-a.biometrik).slice(0,20);
+  const labels=top.map(o=>o.dse);
+  if(charts.dse)charts.dse.destroy();
+  charts.dse=new Chart(document.getElementById('dseChart'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'Biometrik',data:top.map(o=>o.biometrik),
+      backgroundColor:labels.map((_,i)=>`hsl(${245-i*7},75%,${62-i*0.7}%)`),borderRadius:6,maxBarThickness:30}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      onClick:(e,els)=>{ if(els.length && labels[els[0].index]!=='(tanpa DSE)'){state.dse=labels[els[0].index];state.outlet=null;tablePage=1;renderAll();} },
+      scales:{x:{ticks:{maxRotation:60,minRotation:40,font:{size:10}},grid:{display:false}},
+        y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#eef2f7'}}}}
+  });
+  const topO=arr.slice().sort((a,b)=>b.outlet-a.outlet).slice(0,20);
+  const labelsO=topO.map(o=>o.dse);
+  if(charts.dseOutlet)charts.dseOutlet.destroy();
+  charts.dseOutlet=new Chart(document.getElementById('dseOutletChart'),{
+    type:'bar',
+    data:{labels:labelsO,datasets:[{label:'Outlet',data:topO.map(o=>o.outlet),
+      backgroundColor:labelsO.map((_,i)=>`hsl(${190-i*7},75%,${58-i*0.7}%)`),borderRadius:6,maxBarThickness:30}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{maxRotation:60,minRotation:40,font:{size:10}},grid:{display:false}},
+        y:{beginAtZero:true,ticks:{precision:0},grid:{color:'#eef2f7'}}}}
+  });
+  // table
+  const total=arr.length, pages=Math.max(1,Math.ceil(total/dsePageSize));
+  if(dsePage>pages)dsePage=pages;
+  const start=(dsePage-1)*dsePageSize, slice=arr.slice(start,start+dsePageSize);
+  document.getElementById('dseHead').innerHTML=DSE_COLS.map(c=>{
+    const ar=dseSort.key===c.k?(dseSort.dir<0?'▼':'▲'):'';
+    return `<th class="${c.num?'num':''}" data-k="${c.k}">${c.t} <span class="ar">${ar}</span></th>`;
+  }).join('');
+  document.querySelectorAll('#dseHead th').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k; if(dseSort.key===k)dseSort.dir*=-1; else {dseSort.key=k;dseSort.dir=-1;} renderDSE(rows);
+  });
+  const body=document.getElementById('dseBody');
+  if(!slice.length) body.innerHTML='<tr><td colspan="6" class="empty">Tidak ada data.</td></tr>';
+  else body.innerHTML=slice.map(o=>`<tr data-dse="${o.dse}">
+      <td>${o.dse}</td><td>${o.mc}</td>
+      <td class="num">${fmt(o.outlet)}</td>
+      <td class="num">${fmt(o.biometrik)}</td>
+      <td class="num">${fmt(o.unik)}</td>
+      <td class="num">${rupiah(o.cash)}</td></tr>`).join('');
+  body.querySelectorAll('tr[data-dse]').forEach(tr=>tr.onclick=()=>{
+    const d=tr.dataset.dse; if(d==='(tanpa DSE)')return;
+    if(state.dse===d){state.dse=null;} else {state.dse=d;} state.outlet=null; tablePage=1; renderAll();
+  });
+  const pager=document.getElementById('dsePager');
+  pager.innerHTML=`<span>Menampilkan ${total?start+1:0}–${Math.min(start+dsePageSize,total)} dari ${total} DSE</span>
+    <button id="dPrev" ${dsePage<=1?'disabled':''}>‹ Seb</button>
+    <span>Hal ${dsePage}/${pages}</span>
+    <button id="dNext" ${dsePage>=pages?'disabled':''}>Ber ›</button>
+    <span style="margin-left:auto">Per halaman:
+    <select id="dSize">${[10,25,50,100].map(s=>`<option value="${s}" ${s===dsePageSize?'selected':''}>${s}</option>`).join('')}</select></span>`;
+  document.getElementById('dPrev').onclick=()=>{dsePage--;renderDSE(rows);};
+  document.getElementById('dNext').onclick=()=>{dsePage++;renderDSE(rows);};
+  document.getElementById('dSize').onchange=e=>{dsePageSize=+e.target.value;dsePage=1;renderDSE(rows);};
+}
+
 /* ---------- table ---------- */
 const COLS=[
   {k:'outlet_code',t:'Kode Outlet',num:false},
@@ -510,7 +634,7 @@ function renderTable(rows){
 function renderAll(){
   const rows=getFiltered();
   renderKPIs(rows); renderCrumb(); renderFilters();
-  renderMain(rows); renderBrand(rows); renderTrend(rows); renderTable(rows);
+  renderMain(rows); renderBrand(rows); renderTrend(rows); renderDSE(rows); renderTable(rows);
 }
 
 /* ---------- events ---------- */
@@ -519,6 +643,7 @@ document.getElementById('fMC').onchange=e=>{state.mc=e.target.value||null;state.
 document.getElementById('fDSE').onchange=e=>{state.dse=e.target.value||null;state.outlet=null;tablePage=1;renderAll();};
 let tov; document.getElementById('fOutlet').oninput=e=>{clearTimeout(tov);tov=setTimeout(()=>{outletSearch=e.target.value;tablePage=1;renderAll();},250);};
 let tsv; document.getElementById('tblSearch').oninput=e=>{clearTimeout(tsv);tsv=setTimeout(()=>{outletSearch=e.target.value;tablePage=1;renderAll();},250);};
+let dq; document.getElementById('dseSearch').oninput=e=>{clearTimeout(dq);dq=setTimeout(()=>{dseSearch=e.target.value;dsePage=1;renderDSE(getFiltered());},250);};
 document.getElementById('brandToggle').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#brandToggle button').forEach(x=>x.classList.remove('active'));
   b.classList.add('active'); state.brand=b.dataset.b; tablePage=1; renderAll();
