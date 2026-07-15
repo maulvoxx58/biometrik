@@ -211,6 +211,7 @@ let outletSearch = '';
 let charts = {};
 let tableSort = { key:'count', dir:-1 };
 let tablePage = 1, tablePageSize = 10;
+let dseSort = { key:'biometrik', dir:-1 }, dsePage = 1, dsePageSize = 10, dseSearch = '';
 
 const nf = new Intl.NumberFormat('id-ID');
 const fmt = n => nf.format(n==null?0:n);
@@ -476,7 +477,6 @@ const DSE_COLS=[
   {k:'unik',t:'Pelanggan Unik',num:true},
   {k:'cash',t:'Cashback',num:true},
 ];
-let dseSort={key:'biometrik',dir:-1}, dsePage=1, dsePageSize=10, dseSearch='';
 function aggDSE(rows){
   const m=new Map();
   rows.forEach(r=>{
@@ -491,18 +491,19 @@ function renderDSE(rows){
   if(currentDim()!=='branch' || !state.branch){ panel.style.display='none'; if(charts.dse)charts.dse.destroy(); if(charts.dseOutlet)charts.dseOutlet.destroy(); return; }
   panel.style.display='';
   document.getElementById('dseBranchName').textContent=state.branch;
-  const totOutlet=arr.reduce((s,o)=>s+o.outlet,0), totBio=arr.reduce((s,o)=>s+o.biometrik,0),
-        totUnik=arr.reduce((s,o)=>s+o.unik,0), totCash=arr.reduce((s,o)=>s+o.cash,0);
-  document.getElementById('dseSummary').innerHTML=
-    `<span>🔢 DSE: <b>${fmt(arr.length)}</b></span>
-     <span>🏪 Outlet: <b>${fmt(totOutlet)}</b></span>
-     <span>🧬 Biometrik: <b>${fmt(totBio)}</b></span>
-     <span>👥 Unik: <b>${fmt(totUnik)}</b></span>
-     <span>💰 Cashback: <b>${rupiah(totCash)}</b></span>`;
+  const totOutlet=rows.reduce((s,r)=>s+1,0); // placeholder, recomputed below
   const q=dseSearch.trim().toLowerCase();
   let arr=aggDSE(rows).filter(o=>!q||(o.dse+' '+o.mc).toLowerCase().includes(q));
   arr.sort((a,b)=>{ let x=a[dseSort.key],y=b[dseSort.key];
     if(typeof x==='string') return dseSort.dir*x.localeCompare(y); return dseSort.dir*(x-y); });
+  const totO=arr.reduce((s,o)=>s+o.outlet,0), totB=arr.reduce((s,o)=>s+o.biometrik,0),
+        totU=arr.reduce((s,o)=>s+o.unik,0), totC=arr.reduce((s,o)=>s+o.cash,0);
+  document.getElementById('dseSummary').innerHTML=
+    `<span>🔢 DSE: <b>${fmt(arr.length)}</b></span>
+     <span>🏪 Outlet: <b>${fmt(totO)}</b></span>
+     <span>🧬 Biometrik: <b>${fmt(totB)}</b></span>
+     <span>👥 Unik: <b>${fmt(totU)}</b></span>
+     <span>💰 Cashback: <b>${rupiah(totC)}</b></span>`;
   // charts
   const top=arr.slice().sort((a,b)=>b.biometrik-a.biometrik).slice(0,20);
   const labels=top.map(o=>o.dse);
@@ -601,7 +602,6 @@ function renderTable(rows){
   const body=document.getElementById('tblBody');
   if(!slice.length){ body.innerHTML='<tr><td colspan="8" class="empty">Tidak ada data pada filter ini.</td></tr>'; }
   else body.innerHTML=slice.map(o=>{
-    const bn=o.dse?'':' (tanpa DSE)';
     return `<tr data-code="${o.outlet_code}">
       <td>${o.outlet_code}</td>
       <td>${o.outlet_name}</td>
@@ -649,7 +649,7 @@ document.getElementById('brandToggle').querySelectorAll('button').forEach(b=>b.o
   b.classList.add('active'); state.brand=b.dataset.b; tablePage=1; renderAll();
 });
 document.getElementById('resetBtn').onclick=()=>{
-  state={branch:null,mc:null,dse:null,outlet:null,brand:state.brand}; outletSearch=''; tablePage=1; renderAll();
+  state={branch:null,mc:null,dse:null,outlet:null,brand:state.brand}; outletSearch=''; dseSearch=''; tablePage=1; renderAll();
 };
 document.getElementById('refreshBtn').onclick=()=>loadLive();
 
