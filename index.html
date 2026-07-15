@@ -488,7 +488,7 @@ function aggDSE(rows){
 }
 function renderDSE(rows){
   const panel=document.getElementById('dsePanel');
-  if(currentDim()!=='branch' || !state.branch){ panel.style.display='none'; if(charts.dse)charts.dse.destroy(); if(charts.dseOutlet)charts.dseOutlet.destroy(); return; }
+  if(!state.branch){ panel.style.display='none'; if(charts.dse)charts.dse.destroy(); if(charts.dseOutlet)charts.dseOutlet.destroy(); return; }
   panel.style.display='';
   document.getElementById('dseBranchName').textContent=state.branch;
   const totOutlet=rows.reduce((s,r)=>s+1,0); // placeholder, recomputed below
